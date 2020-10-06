@@ -33,9 +33,6 @@ namespace PasswordSynchronizingServer
         public const int SERVER_SEND_PARTIAL_DATA = 3002;
         public const int SERVER_SEND_ALL_DATA = 3003;
 
-        public const int SERVER_PERMISSION_GRANTED = 6001;
-        public const int SERVER_PERMISSION_DENIED = 6002;
-
         public const int CLIENT_CREATE_NEW_HOST = 0001;
         public const int CLIENT_CREATE_NEW_GUEST = 0002;
 
@@ -47,9 +44,6 @@ namespace PasswordSynchronizingServer
         public const int CLIENT_RECEIVED_FILE_SIZE = 5002;
         public const int CLIENT_RECEIVED_PARTIAL_DATA = 5003;
         public const int CLIENT_RECEIVED_ALL_DATA = 5004;
-
-        public const int CLIENT_PERMISSION_GRANTED = 7001;
-        public const int CLIENT_PERMISSION_DENIED = 7002;
     }
     public class Server
     {
@@ -74,14 +68,7 @@ namespace PasswordSynchronizingServer
                 Socket client = listener.Accept();
                 await Task.Run(() =>
                 {
-                    try
-                    {
-                        new Transfer(client, this);
-                    }
-                    catch (Exception e)
-                    {
-                        Console.WriteLine("Disconnected");
-                    }
+                    new Transfer(client, this);
                 });
             }
         }
@@ -122,11 +109,11 @@ namespace PasswordSynchronizingServer
         private int currentFileSize = 0;
         private bool listeningHost = false;
 
-        public Transfer(Socket client, Server server)
+        public Transfer(Socket socket, Server server)
         {
-            clientGuest = client;
+            this.clientGuest = socket;
             this.server = server;
-            buffer = new byte[MessageInfo.BUFFER_SIZE];
+            this.buffer = new byte[MessageInfo.BUFFER_SIZE];
             Receive();
         }
 
@@ -142,29 +129,23 @@ namespace PasswordSynchronizingServer
         {
             clientGuest.EndReceive(ar);
             string msg = Encoding.Default.GetString(buffer, 0, buffer.Length);
-            
             int command = int.Parse(msg.Substring(0, MessageInfo.COMMAND_SIZE));
+
             switch (command)
             {
                 case MessageInfo.CLIENT_CREATE_NEW_HOST:
-                    Console.WriteLine("New Host Created");
                     CreateNewLink(true, msg);
                     break;
                 case MessageInfo.CLIENT_CREATE_NEW_GUEST:
-                    Console.WriteLine("New Guest Created");
                     CreateNewLink(false, msg);
                     break;
                 case MessageInfo.CLIENT_REQUEST_DATA:
-                    Console.WriteLine("Data request sent");
                     RequestPermission();
                     break;
                 case MessageInfo.CLIENT_RECEIVED_FILE_SIZE:
                 case MessageInfo.CLIENT_RECEIVED_PARTIAL_DATA:
-                    Console.WriteLine("Data sent");
-                    SendData();
-                    break;
                 case MessageInfo.CLIENT_RECEIVED_ALL_DATA:
-                    Console.WriteLine("All data sent");
+                    SendData();
                     break;
             }
         }
@@ -177,21 +158,11 @@ namespace PasswordSynchronizingServer
 
             switch (command)
             {
-                case MessageInfo.CLIENT_PERMISSION_GRANTED:
-                    Console.WriteLine("Permission granted");
-                    ReplyPermission(true);
-                    break;
-                case MessageInfo.CLIENT_PERMISSION_DENIED:
-                    Console.WriteLine("Permission denied");
-                    ReplyPermission(false);
-                    break;
                 case MessageInfo.CLIENT_SEND_FILE_SIZE:
-                    Console.WriteLine("File size received");
                     PrepareReceiveData(msg);
                     break;
                 case MessageInfo.CLIENT_SEND_PARTIAL_DATA:
                 case MessageInfo.CLIENT_SEND_ALL_DATA:
-                    Console.WriteLine("Data received");
                     ReceiveData(msg);
                     break;
             }
@@ -219,12 +190,11 @@ namespace PasswordSynchronizingServer
                 if (tempHost != null)
                 {
                     clientHost = tempHost;
-                    listeningHost = true;
-                    ReplyNewLink(false, true);
+                    ReplyNewLink(true, true);
                 }
                 else
                 {
-                    ReplyNewLink(false, false);
+                    ReplyNewLink(true, false);
                 }
             }
         }
@@ -237,13 +207,7 @@ namespace PasswordSynchronizingServer
             replyHeader = (isHost ? MessageInfo.SERVER_CREATED_NEW_HOST : MessageInfo.SERVER_CREATED_NEW_GUEST);
             replyMessage = (result ? "succeeded" : "failed");
 
-            SendMsg(false, string.Format("{0:D4}{1:D4}{2}", replyHeader, 0, replyMessage));
-        }
-
-        private void ReplyPermission(bool permission)
-        {
-            int replyCommand = (permission ? MessageInfo.SERVER_PERMISSION_GRANTED : MessageInfo.SERVER_PERMISSION_DENIED);
-            SendMsg(false, string.Format("{0:D4}", replyCommand));
+            SendMsg(isHost, string.Format("{0:D4}{1:D4}{2}", replyHeader, 0, replyMessage));
         }
 
         private void RequestPermission()
@@ -254,8 +218,7 @@ namespace PasswordSynchronizingServer
 
         private void PrepareReceiveData(string msg)
         {
-            int msgDataLength = int.Parse(msg.Substring(MessageInfo.COMMAND_SIZE, MessageInfo.LENGTH_SIZE));
-            int fileSize = int.Parse(msg.Substring(MessageInfo.HEADER_SIZE, msgDataLength));
+            int fileSize = int.Parse(msg.Substring(MessageInfo.HEADER_SIZE, MessageInfo.DATA_SIZE));
             data = new byte[fileSize];
 
             SendMsg(true, string.Format("{0:D4}", MessageInfo.SERVER_RECEIVED_FILE_SIZE));
@@ -277,9 +240,7 @@ namespace PasswordSynchronizingServer
                 listeningHost = false;
                 currentFileSize = 0;
                 SendMsg(true, string.Format("{0:D4}", MessageInfo.SERVER_RECEIVED_ALL_DATA));
-
-                int msgDataLength = Convert.ToString(data.Length).Length;
-                SendMsg(false, string.Format("{0:D4}{1:D4}{2}", MessageInfo.SERVER_SEND_FILE_SIZE, msgDataLength, data.Length));
+                SendMsg(true, string.Format("{0:D4}{1:D4}", MessageInfo.SERVER_SEND_FILE_SIZE, data.Length));
             }
             else
             {
@@ -311,10 +272,100 @@ namespace PasswordSynchronizingServer
             Buffer.BlockCopy(msgHeader, 0, msg, 0, MessageInfo.HEADER_SIZE);
             Buffer.BlockCopy(data, currentFileSize, msg, MessageInfo.HEADER_SIZE, msgDataSize);
 
-            currentFileSize += msgDataSize;
 
-            SendMsg(false, msg);
+            SendMsg(false, Encoding.Default.GetString(msg));
         }
+
+
+
+
+        /*
+
+        private void FileUploadInitiate(string msg)
+        {
+            fileName = msg.Substring(MessageInfo.HEADER_COMMAND_SIZE, MessageInfo.HEADER_CREDENTIAL_SIZE);
+
+            int fileSize = int.Parse(msg.Substring(MessageInfo.HEADER_SIZE, msg.Length));
+            data = new byte[fileSize];
+            currentFileSize = 0;
+
+            string reply = string.Format("{0:D4}{1:D4}{2:D4}{3}", MessageInfo.SERVER_RECEIVED_FILE_SIZE, 0, 0, "");
+            SendMsg(reply);
+        }
+
+        private void UploadFile(string msg)
+        {
+            int fileSize = int.Parse(msg.Substring(MessageInfo.HEADER_COMMAND_SIZE + MessageInfo.HEADER_CREDENTIAL_SIZE, MessageInfo.HEADER_DATA_LENGTH_SIZE));
+            string receivedFile = msg.Substring(MessageInfo.HEADER_SIZE, fileSize);
+            byte[] bytes = Encoding.Default.GetBytes(receivedFile);
+            Buffer.BlockCopy(bytes, 0, data, currentFileSize, fileSize);
+
+            currentFileSize += fileSize;
+            if (data.Length == currentFileSize)
+            {
+                FileStream fs = new FileStream("./usedat.dat", FileMode.OpenOrCreate, FileAccess.Write);
+                BinaryWriter bw = new BinaryWriter(fs);
+                bw.Write(data, 0, data.Length);
+                bw.Close();
+                fs.Close();
+            }
+
+            string reply = string.Format("{0:D4}{1:D4}{2:D4}{3}", MessageInfo.SERVER_RECEIVED_FILE, 0, 0, "");
+            SendMsg(reply);
+        }
+
+        private void ReadFile(string msg)
+        {
+            fileName = msg.Substring(MessageInfo.HEADER_COMMAND_SIZE, MessageInfo.HEADER_CREDENTIAL_SIZE);
+
+            FileInfo fi = new FileInfo(fileName);
+            string reply;
+            if (!(fi.Exists))
+            {
+                reply = string.Format("{0:D4}{1:D4}{2:D4}{3}", MessageInfo.SERVER_SEND_NO_FILE, 0, 0, "");
+                SendMsg(reply);
+                return;
+            }
+
+            data = new byte[fi.Length];
+            FileStream fs = new FileStream(fileName, FileMode.Open, FileAccess.Read);
+            BinaryReader br = new BinaryReader(fs);
+            br.Read(data, 0, data.Length);
+            br.Close();
+            fs.Close();
+
+            currentFileSize = 0;
+
+            reply = string.Format("{0:D4}{1:D4}{2:D4}{3}", MessageInfo.SERVER_SEND_FILE_SIZE, 0, data.Length, "");
+            SendMsg(reply);
+        }
+
+        private void SendFile()
+        {
+            string strCommand = string.Format("{0:D4}", MessageInfo.SERVER_SEND_FILE);
+            byte[] byteCommand = new byte[MessageInfo.HEADER_COMMAND_SIZE];
+            byteCommand = Encoding.Default.GetBytes(strCommand);
+
+            string strCredential = string.Format("{0:D4}", 0);
+            byte[] byteCredential = new byte[MessageInfo.HEADER_CREDENTIAL_SIZE];
+            byteCredential = Encoding.Default.GetBytes(strCredential);
+
+            int dataLength;
+            if ((data.Length - currentFileSize) > MessageInfo.BUFFER_SIZE)
+            {
+                dataLength = MessageInfo.BUFFER_SIZE;
+            }
+            else
+            {
+                dataLength = data.Length - currentFileSize;
+            }
+            string strDataLength = string.Format("{0:D4}", dataLength);
+            byte[] byteDataLength = new byte[MessageInfo.HEADER_DATA_LENGTH_SIZE];
+            byteDataLength = Encoding.Default.GetBytes(strDataLength);
+
+            byte[] bytes = new byte[MessageInfo.BUFFER_SIZE];
+        }
+        */
 
         private void SendMsg(bool isHost, string msg)
         {
@@ -327,24 +378,10 @@ namespace PasswordSynchronizingServer
             Thread.Sleep(500);
         }
 
-        private void SendMsg(bool isHost, byte[] msg)
-        {
-            Socket destination;
-
-            destination = (isHost ? clientHost : clientGuest);
-            destination.BeginSend(msg, 0, msg.Length, SocketFlags.None, new AsyncCallback(SendMsgCallback), destination);
-
-            Thread.Sleep(500);
-        }
-
         private void SendMsgCallback(IAsyncResult ar)
         {
             Socket destination = (Socket)ar.AsyncState;
             destination.EndSend(ar);
-
-            if (clientHost == null)
-                return;
-
             Receive();
         }
     }

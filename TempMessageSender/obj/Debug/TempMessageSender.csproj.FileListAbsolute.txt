@@ -5,10 +5,3 @@ C:\Users\CraneHk\source\repos\TempMessageSender\obj\Debug\TempMessageSender.cspr
 C:\Users\CraneHk\source\repos\TempMessageSender\obj\Debug\TempMessageSender.csproj.CoreCompileInputs.cache
 C:\Users\CraneHk\source\repos\TempMessageSender\obj\Debug\TempMessageSender.exe
 C:\Users\CraneHk\source\repos\TempMessageSender\obj\Debug\TempMessageSender.pdb
-C:\Users\CraneHk\source\repos\PasswordSynchronizingServer\TempMessageSender\bin\Debug\TempMessageSender.exe.config
-C:\Users\CraneHk\source\repos\PasswordSynchronizingServer\TempMessageSender\bin\Debug\TempMessageSender.exe
-C:\Users\CraneHk\source\repos\PasswordSynchronizingServer\TempMessageSender\bin\Debug\TempMessageSender.pdb
-C:\Users\CraneHk\source\repos\PasswordSynchronizingServer\TempMessageSender\obj\Debug\TempMessageSender.csprojAssemblyReference.cache
-C:\Users\CraneHk\source\repos\PasswordSynchronizingServer\TempMessageSender\obj\Debug\TempMessageSender.csproj.CoreCompileInputs.cache
-C:\Users\CraneHk\source\repos\PasswordSynchronizingServer\TempMessageSender\obj\Debug\TempMessageSender.exe
-C:\Users\CraneHk\source\repos\PasswordSynchronizingServer\TempMessageSender\obj\Debug\TempMessageSender.pdb

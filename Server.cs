@@ -14,27 +14,36 @@ namespace PasswordSynchronizingServer
     class MessageInfo
     {
         public const int BUFFER_SIZE = 1024;
-        public const int HEADER_COMMAND_SIZE = 4;
-        public const int HEADER_CREDENTIAL_SIZE = 4;
-        public const int HEADER_DATA_LENGTH_SIZE = 4;
-        public const int DATA_SIZE = BUFFER_SIZE - HEADER_COMMAND_SIZE - HEADER_CREDENTIAL_SIZE
-            - HEADER_DATA_LENGTH_SIZE;
-        public const int HEADER_SIZE = HEADER_COMMAND_SIZE + HEADER_CREDENTIAL_SIZE
-            + HEADER_DATA_LENGTH_SIZE;
+        public const int COMMAND_SIZE = 4;
+        public const int LENGTH_SIZE = 4;
+        public const int HEADER_SIZE = COMMAND_SIZE + LENGTH_SIZE;
+        public const int DATA_SIZE = BUFFER_SIZE - HEADER_SIZE;
+        
+        public const int CREDENTIAL_SIZE = 8;
 
-        public const int SERVER_SEND_FILE_SIZE = 8001;
-        public const int SERVER_SEND_FILE = 8002;
-        public const int SERVER_SEND_NO_FILE = 8003;
-        public const int SERVER_RECEIVED_FILE_SIZE = 8500;
-        public const int SERVER_RECEIVED_FILE = 8502;
+        public const int SERVER_CREATED_NEW_HOST = 1001;
+        public const int SERVER_CREATED_NEW_GUEST = 1002;
+        
+        public const int SERVER_REQUEST_DATA = 2001;
+        public const int SERVER_RECEIVED_FILE_SIZE = 2002;
+        public const int SERVER_RECEIVED_PARTIAL_DATA = 2003;
+        public const int SERVER_RECEIVED_ALL_DATA = 2004;
 
-        public const int CLIENT_SEND_FILE = 9002;
-        public const int CLIENT_RECEIVED_FILE_SIZE = 9500;
-        public const int CLIENT_RECEIVED_FILE = 9501;
+        public const int SERVER_SEND_FILE_SIZE = 3001;
+        public const int SERVER_SEND_PARTIAL_DATA = 3002;
+        public const int SERVER_SEND_ALL_DATA = 3003;
 
-        public const int CLIENT_REQUEST_UPLOAD_FILE = 9900;
-        public const int CLIENT_REQUEST_READ_FILE = 9901;
-        public const int CLIENT_REQUEST_DELETE_FILE = 9902;
+        public const int CLIENT_CREATE_NEW_HOST = 0001;
+        public const int CLIENT_CREATE_NEW_GUEST = 0002;
+
+        public const int CLIENT_SEND_FILE_SIZE = 4001;
+        public const int CLIENT_SEND_PARTIAL_DATA = 4002;
+        public const int CLIENT_SEND_ALL_DATA = 4003;
+
+        public const int CLIENT_REQUEST_DATA = 5001;
+        public const int CLIENT_RECEIVED_FILE_SIZE = 5002;
+        public const int CLIENT_RECEIVED_PARTIAL_DATA = 5003;
+        public const int CLIENT_RECEIVED_ALL_DATA = 5004;
     }
     public class Server
     {
@@ -42,7 +51,7 @@ namespace PasswordSynchronizingServer
 
         private Socket listener = null;
         
-        Hashtable hashtable = new Hashtable();
+        private Hashtable linkTable = new Hashtable();
 
         public void Initiate()
         {
@@ -59,56 +68,218 @@ namespace PasswordSynchronizingServer
                 Socket client = listener.Accept();
                 await Task.Run(() =>
                 {
-                    new Transfer(client);
+                    new Transfer(client, this);
                 });
+            }
+        }
+
+        public bool AddHostSocket(string key, Socket device)
+        {
+            if (linkTable.ContainsKey(key))
+            {
+                return false;
+            }
+            else
+            {
+                linkTable.Add(key, device);
+                return true;
+            }
+        }
+
+        public Socket GetHostSocket(string key)
+        {
+            if (linkTable.ContainsKey(key))
+            {
+                return (Socket)linkTable[key];
+            }
+            else
+            {
+                return null;
             }
         }
     }
 
     class Transfer
     {
-        private Socket client;
+        private Socket clientHost;
+        private Socket clientGuest;
+        private Server server;
         private byte[] buffer;
         private byte[] data;
-        private string fileName;
         private int currentFileSize = 0;
+        private bool listeningHost = false;
 
-        public Transfer(Socket socket)
+        public Transfer(Socket socket, Server server)
         {
-            client = socket;
-            buffer = new byte[MessageInfo.BUFFER_SIZE];
+            this.clientGuest = socket;
+            this.server = server;
+            this.buffer = new byte[MessageInfo.BUFFER_SIZE];
             Receive();
         }
 
         private void Receive()
         {
-            client.BeginReceive(buffer, 0, MessageInfo.BUFFER_SIZE, SocketFlags.None, new AsyncCallback(EndReceive), buffer);
+            if (listeningHost)
+                clientHost.BeginReceive(buffer, 0, MessageInfo.BUFFER_SIZE, SocketFlags.None, new AsyncCallback(ReceiveHostCallback), clientHost);
+            else
+                clientGuest.BeginReceive(buffer, 0, MessageInfo.BUFFER_SIZE, SocketFlags.None, new AsyncCallback(ReceiveGuestCallback), clientGuest);
         }
 
-        private void EndReceive(IAsyncResult ar)
+        private void ReceiveGuestCallback(IAsyncResult ar)
         {
-            byte[] buff = (byte[])ar.AsyncState;
-            int size = client.EndReceive(ar);
-            string msg = Encoding.Default.GetString(buff, 0, size);
-            int command = int.Parse(msg.Substring(0, MessageInfo.HEADER_COMMAND_SIZE));
+            clientGuest.EndReceive(ar);
+            string msg = Encoding.Default.GetString(buffer, 0, buffer.Length);
+            int command = int.Parse(msg.Substring(0, MessageInfo.COMMAND_SIZE));
 
-            switch(command)
+            switch (command)
             {
-                case MessageInfo.CLIENT_REQUEST_UPLOAD_FILE:
-                    FileUploadInitiate(msg);
+                case MessageInfo.CLIENT_CREATE_NEW_HOST:
+                    CreateNewLink(true, msg);
                     break;
-                case MessageInfo.CLIENT_SEND_FILE:
-                    UploadFile(msg);
+                case MessageInfo.CLIENT_CREATE_NEW_GUEST:
+                    CreateNewLink(false, msg);
                     break;
-                case MessageInfo.CLIENT_REQUEST_READ_FILE:
-                    ReadFile(msg);
+                case MessageInfo.CLIENT_REQUEST_DATA:
+                    RequestPermission();
                     break;
                 case MessageInfo.CLIENT_RECEIVED_FILE_SIZE:
-                case MessageInfo.CLIENT_RECEIVED_FILE:
-                    SendFile();
+                case MessageInfo.CLIENT_RECEIVED_PARTIAL_DATA:
+                case MessageInfo.CLIENT_RECEIVED_ALL_DATA:
+                    SendData();
                     break;
             }
         }
+
+        private void ReceiveHostCallback(IAsyncResult ar)
+        {
+            clientHost.EndReceive(ar);
+            string msg = Encoding.Default.GetString(buffer, 0, buffer.Length);
+            int command = int.Parse(msg.Substring(0, MessageInfo.COMMAND_SIZE));
+
+            switch (command)
+            {
+                case MessageInfo.CLIENT_SEND_FILE_SIZE:
+                    PrepareReceiveData(msg);
+                    break;
+                case MessageInfo.CLIENT_SEND_PARTIAL_DATA:
+                case MessageInfo.CLIENT_SEND_ALL_DATA:
+                    ReceiveData(msg);
+                    break;
+            }
+        }
+
+        private void CreateNewLink(bool isHost, string msg)
+        {
+            string key = msg.Substring(MessageInfo.HEADER_SIZE, MessageInfo.CREDENTIAL_SIZE);
+            Socket tempHost = server.GetHostSocket(key);
+
+            if (isHost)
+            {
+                if (tempHost == null)
+                {
+                    server.AddHostSocket(key, clientGuest);
+                    ReplyNewLink(true, true);
+                }
+                else
+                {
+                    ReplyNewLink(true, false);
+                }
+            }
+            else
+            {
+                if (tempHost != null)
+                {
+                    clientHost = tempHost;
+                    ReplyNewLink(true, true);
+                }
+                else
+                {
+                    ReplyNewLink(true, false);
+                }
+            }
+        }
+
+        private void ReplyNewLink(bool isHost, bool result)
+        {
+            int replyHeader;
+            string replyMessage;
+
+            replyHeader = (isHost ? MessageInfo.SERVER_CREATED_NEW_HOST : MessageInfo.SERVER_CREATED_NEW_GUEST);
+            replyMessage = (result ? "succeeded" : "failed");
+
+            SendMsg(isHost, string.Format("{0:D4}{1:D4}{2}", replyHeader, 0, replyMessage));
+        }
+
+        private void RequestPermission()
+        {
+            listeningHost = true;
+            SendMsg(true, string.Format("{0:D4}", MessageInfo.SERVER_REQUEST_DATA));
+        }
+
+        private void PrepareReceiveData(string msg)
+        {
+            int fileSize = int.Parse(msg.Substring(MessageInfo.HEADER_SIZE, MessageInfo.DATA_SIZE));
+            data = new byte[fileSize];
+
+            SendMsg(true, string.Format("{0:D4}", MessageInfo.SERVER_RECEIVED_FILE_SIZE));
+        }
+
+        private void ReceiveData(string msg)
+        {
+            int msgDataSize;
+            byte[] receivedFile;
+            
+            msgDataSize = int.Parse(msg.Substring(MessageInfo.COMMAND_SIZE, MessageInfo.LENGTH_SIZE));
+            receivedFile = Encoding.Default.GetBytes(msg.Substring(MessageInfo.HEADER_SIZE, msgDataSize));
+            
+            Buffer.BlockCopy(receivedFile, 0, data, currentFileSize, msgDataSize);
+            currentFileSize += msgDataSize;
+
+            if (data.Length == currentFileSize)
+            {
+                listeningHost = false;
+                currentFileSize = 0;
+                SendMsg(true, string.Format("{0:D4}", MessageInfo.SERVER_RECEIVED_ALL_DATA));
+                SendMsg(true, string.Format("{0:D4}{1:D4}", MessageInfo.SERVER_SEND_FILE_SIZE, data.Length));
+            }
+            else
+            {
+                SendMsg(true, string.Format("{0:D4}", MessageInfo.SERVER_RECEIVED_PARTIAL_DATA));
+            }
+        }
+
+        private void SendData()
+        {
+            int msgCommand, msgDataSize, msgSize;
+            byte[] msg;
+
+            if ((data.Length - currentFileSize) > MessageInfo.DATA_SIZE)
+            {
+                msgCommand = MessageInfo.SERVER_SEND_PARTIAL_DATA;
+                msgDataSize = MessageInfo.DATA_SIZE;
+                msgSize = MessageInfo.BUFFER_SIZE;
+            }
+            else
+            {
+                msgCommand = MessageInfo.SERVER_SEND_ALL_DATA;
+                msgDataSize = data.Length - currentFileSize;
+                msgSize = MessageInfo.HEADER_SIZE + msgDataSize;
+            }
+
+            byte[] msgHeader = Encoding.Default.GetBytes(string.Format("{0:D4}{1:D4}", msgCommand, msgDataSize));
+
+            msg = new byte[msgSize];
+            Buffer.BlockCopy(msgHeader, 0, msg, 0, MessageInfo.HEADER_SIZE);
+            Buffer.BlockCopy(data, currentFileSize, msg, MessageInfo.HEADER_SIZE, msgDataSize);
+
+
+            SendMsg(false, Encoding.Default.GetString(msg));
+        }
+
+
+
+
+        /*
 
         private void FileUploadInitiate(string msg)
         {
@@ -194,17 +365,23 @@ namespace PasswordSynchronizingServer
 
             byte[] bytes = new byte[MessageInfo.BUFFER_SIZE];
         }
+        */
 
-        private void SendMsg(string msg)
+        private void SendMsg(bool isHost, string msg)
         {
+            Socket destination;
             byte[] byteMsg = Encoding.Default.GetBytes(msg);
-            client.BeginSend(byteMsg, 0, byteMsg.Length, SocketFlags.None, new AsyncCallback(Callback_SendMsg), client);
+
+            destination = (isHost ? clientHost : clientGuest);
+            destination.BeginSend(byteMsg, 0, byteMsg.Length, SocketFlags.None, new AsyncCallback(SendMsgCallback), destination);
+
             Thread.Sleep(500);
         }
 
-        private void Callback_SendMsg(IAsyncResult ar)
+        private void SendMsgCallback(IAsyncResult ar)
         {
-            client = (Socket)ar.AsyncState;
+            Socket destination = (Socket)ar.AsyncState;
+            destination.EndSend(ar);
             Receive();
         }
     }

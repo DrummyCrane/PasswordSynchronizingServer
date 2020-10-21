@@ -8,6 +8,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Collections;
 using System.Threading;
+using System.Diagnostics;
 
 namespace PasswordSynchronizingServer
 {
@@ -74,14 +75,7 @@ namespace PasswordSynchronizingServer
                 Socket client = listener.Accept();
                 await Task.Run(() =>
                 {
-                    try
-                    {
-                        new Transfer(client, this);
-                    }
-                    catch (Exception e)
-                    {
-                        Console.WriteLine("Disconnected");
-                    }
+                    new Transfer(client, this);
                 });
             }
         }
@@ -109,6 +103,20 @@ namespace PasswordSynchronizingServer
             {
                 return null;
             }
+        }
+
+        public void RemoveHostSocket(Socket target)
+        {
+            string targetKey = "";
+            foreach (DictionaryEntry linkEntry in linkTable)
+            {
+                if (linkEntry.Value == target)
+                {
+                    targetKey = (string)linkEntry.Key;
+                    break;
+                }
+            }
+            linkTable.Remove(targetKey);
         }
     }
 
@@ -140,60 +148,76 @@ namespace PasswordSynchronizingServer
 
         private void ReceiveGuestCallback(IAsyncResult ar)
         {
-            clientGuest.EndReceive(ar);
-            string msg = Encoding.Default.GetString(buffer, 0, buffer.Length);
-            
-            int command = int.Parse(msg.Substring(0, MessageInfo.COMMAND_SIZE));
-            switch (command)
+            try
             {
-                case MessageInfo.CLIENT_CREATE_NEW_HOST:
-                    Console.WriteLine("New Host Created");
-                    CreateNewLink(true, msg);
-                    break;
-                case MessageInfo.CLIENT_CREATE_NEW_GUEST:
-                    Console.WriteLine("New Guest Created");
-                    CreateNewLink(false, msg);
-                    break;
-                case MessageInfo.CLIENT_REQUEST_DATA:
-                    Console.WriteLine("Data request sent");
-                    RequestPermission();
-                    break;
-                case MessageInfo.CLIENT_RECEIVED_FILE_SIZE:
-                case MessageInfo.CLIENT_RECEIVED_PARTIAL_DATA:
-                    Console.WriteLine("Data sent");
-                    SendData();
-                    break;
-                case MessageInfo.CLIENT_RECEIVED_ALL_DATA:
-                    Console.WriteLine("All data sent");
-                    break;
+                clientGuest.EndReceive(ar);
+                string msg = Encoding.Default.GetString(buffer, 0, buffer.Length);
+
+                int command = int.Parse(msg.Substring(0, MessageInfo.COMMAND_SIZE));
+                switch (command)
+                {
+                    case MessageInfo.CLIENT_CREATE_NEW_HOST:
+                        Console.WriteLine("New Host Created");
+                        CreateNewLink(true, msg);
+                        break;
+                    case MessageInfo.CLIENT_CREATE_NEW_GUEST:
+                        Console.WriteLine("New Guest Created");
+                        CreateNewLink(false, msg);
+                        break;
+                    case MessageInfo.CLIENT_REQUEST_DATA:
+                        Console.WriteLine("Data request sent");
+                        RequestPermission();
+                        break;
+                    case MessageInfo.CLIENT_RECEIVED_FILE_SIZE:
+                    case MessageInfo.CLIENT_RECEIVED_PARTIAL_DATA:
+                        Console.WriteLine("Data sent");
+                        SendData();
+                        break;
+                    case MessageInfo.CLIENT_RECEIVED_ALL_DATA:
+                        Console.WriteLine("All data sent");
+                        break;
+                }
+            }
+            catch(Exception e)
+            {
+                Console.WriteLine(e.Message);
+                Disconnect();
             }
         }
 
         private void ReceiveHostCallback(IAsyncResult ar)
         {
-            clientHost.EndReceive(ar);
-            string msg = Encoding.Default.GetString(buffer, 0, buffer.Length);
-            int command = int.Parse(msg.Substring(0, MessageInfo.COMMAND_SIZE));
-
-            switch (command)
+            try
             {
-                case MessageInfo.CLIENT_PERMISSION_GRANTED:
-                    Console.WriteLine("Permission granted");
-                    ReplyPermission(true);
-                    break;
-                case MessageInfo.CLIENT_PERMISSION_DENIED:
-                    Console.WriteLine("Permission denied");
-                    ReplyPermission(false);
-                    break;
-                case MessageInfo.CLIENT_SEND_FILE_SIZE:
-                    Console.WriteLine("File size received");
-                    PrepareReceiveData(msg);
-                    break;
-                case MessageInfo.CLIENT_SEND_PARTIAL_DATA:
-                case MessageInfo.CLIENT_SEND_ALL_DATA:
-                    Console.WriteLine("Data received");
-                    ReceiveData(msg);
-                    break;
+                clientHost.EndReceive(ar);
+                string msg = Encoding.Default.GetString(buffer, 0, buffer.Length);
+                int command = int.Parse(msg.Substring(0, MessageInfo.COMMAND_SIZE));
+
+                switch (command)
+                {
+                    case MessageInfo.CLIENT_PERMISSION_GRANTED:
+                        Console.WriteLine("Permission granted");
+                        ReplyPermission(true);
+                        break;
+                    case MessageInfo.CLIENT_PERMISSION_DENIED:
+                        Console.WriteLine("Permission denied");
+                        ReplyPermission(false);
+                        break;
+                    case MessageInfo.CLIENT_SEND_FILE_SIZE:
+                        Console.WriteLine("File size received");
+                        PrepareReceiveData(msg);
+                        break;
+                    case MessageInfo.CLIENT_SEND_PARTIAL_DATA:
+                    case MessageInfo.CLIENT_SEND_ALL_DATA:
+                        Console.WriteLine("Data received");
+                        ReceiveData(msg);
+                        break;
+                }
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e.Message);
+                Disconnect();
             }
         }
 
@@ -339,13 +363,32 @@ namespace PasswordSynchronizingServer
 
         private void SendMsgCallback(IAsyncResult ar)
         {
-            Socket destination = (Socket)ar.AsyncState;
-            destination.EndSend(ar);
+            try
+            {
+                Socket destination = (Socket)ar.AsyncState;
+                destination.EndSend(ar);
 
-            if (clientHost == null)
-                return;
+                if (clientHost == null)
+                    return;
 
-            Receive();
+                Receive();
+            }
+            catch(Exception e)
+            {
+                Console.WriteLine(e.Message);
+                Disconnect();
+            }
+        }
+
+        private void Disconnect()
+        {
+            if (clientHost != null)
+                clientHost.Close();
+            if (clientGuest != null)
+                clientGuest.Close();
+            server.RemoveHostSocket(clientHost);
+            server.RemoveHostSocket(clientGuest);
+            return;
         }
     }
 }

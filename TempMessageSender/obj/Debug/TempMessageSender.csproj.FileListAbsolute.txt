@@ -12,3 +12,10 @@ C:\Users\CraneHk\source\repos\PasswordSynchronizingServer\TempMessageSender\obj\
 C:\Users\CraneHk\source\repos\PasswordSynchronizingServer\TempMessageSender\obj\Debug\TempMessageSender.csproj.CoreCompileInputs.cache
 C:\Users\CraneHk\source\repos\PasswordSynchronizingServer\TempMessageSender\obj\Debug\TempMessageSender.exe
 C:\Users\CraneHk\source\repos\PasswordSynchronizingServer\TempMessageSender\obj\Debug\TempMessageSender.pdb
+C:\GitHub\PasswordSynchronizingServer\TempMessageSender\bin\Debug\TempMessageSender.exe.config
+C:\GitHub\PasswordSynchronizingServer\TempMessageSender\bin\Debug\TempMessageSender.exe
+C:\GitHub\PasswordSynchronizingServer\TempMessageSender\bin\Debug\TempMessageSender.pdb
+C:\GitHub\PasswordSynchronizingServer\TempMessageSender\obj\Debug\TempMessageSender.csprojAssemblyReference.cache
+C:\GitHub\PasswordSynchronizingServer\TempMessageSender\obj\Debug\TempMessageSender.csproj.CoreCompileInputs.cache
+C:\GitHub\PasswordSynchronizingServer\TempMessageSender\obj\Debug\TempMessageSender.exe
+C:\GitHub\PasswordSynchronizingServer\TempMessageSender\obj\Debug\TempMessageSender.pdb

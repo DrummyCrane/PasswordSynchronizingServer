@@ -1,12 +1,19 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Collections;
 
-namespace PasswordServer
+namespace PasswordSynchronizingServer
 {
     class Program
     {
-        static void Main(string[] args)
+        static async Task Main()
         {
-            Console.WriteLine("Hello World!");
+            Server server = new Server();
+            server.Initiate();
+            await server.Listening();
         }
     }
 }

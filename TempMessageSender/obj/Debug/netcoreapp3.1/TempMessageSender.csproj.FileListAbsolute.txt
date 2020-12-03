@@ -1,0 +1,12 @@
+C:\Users\CraneHk\source\repos\PasswordSynchronizingServer\TempMessageSender\bin\Debug\netcoreapp3.1\TempMessageSender.exe
+C:\Users\CraneHk\source\repos\PasswordSynchronizingServer\TempMessageSender\bin\Debug\netcoreapp3.1\TempMessageSender.deps.json
+C:\Users\CraneHk\source\repos\PasswordSynchronizingServer\TempMessageSender\bin\Debug\netcoreapp3.1\TempMessageSender.runtimeconfig.json
+C:\Users\CraneHk\source\repos\PasswordSynchronizingServer\TempMessageSender\bin\Debug\netcoreapp3.1\TempMessageSender.runtimeconfig.dev.json
+C:\Users\CraneHk\source\repos\PasswordSynchronizingServer\TempMessageSender\bin\Debug\netcoreapp3.1\TempMessageSender.dll
+C:\Users\CraneHk\source\repos\PasswordSynchronizingServer\TempMessageSender\bin\Debug\netcoreapp3.1\TempMessageSender.pdb
+C:\Users\CraneHk\source\repos\PasswordSynchronizingServer\TempMessageSender\obj\Debug\netcoreapp3.1\TempMessageSender.AssemblyInfoInputs.cache
+C:\Users\CraneHk\source\repos\PasswordSynchronizingServer\TempMessageSender\obj\Debug\netcoreapp3.1\TempMessageSender.AssemblyInfo.cs
+C:\Users\CraneHk\source\repos\PasswordSynchronizingServer\TempMessageSender\obj\Debug\netcoreapp3.1\TempMessageSender.csproj.CoreCompileInputs.cache
+C:\Users\CraneHk\source\repos\PasswordSynchronizingServer\TempMessageSender\obj\Debug\netcoreapp3.1\TempMessageSender.dll
+C:\Users\CraneHk\source\repos\PasswordSynchronizingServer\TempMessageSender\obj\Debug\netcoreapp3.1\TempMessageSender.pdb
+C:\Users\CraneHk\source\repos\PasswordSynchronizingServer\TempMessageSender\obj\Debug\netcoreapp3.1\TempMessageSender.genruntimeconfig.cache

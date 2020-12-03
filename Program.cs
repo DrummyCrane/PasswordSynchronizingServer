@@ -11,9 +11,6 @@ namespace PasswordSynchronizingServer
     {
         static async Task Main()
         {
-            //Queue<string> queue;
-            Hashtable hashtable = new Hashtable();
-
             Server server = new Server();
             server.Initiate();
             await server.Listening();
